@@ -1,0 +1,34 @@
+{
+  "kind": "univ4_hook",
+  "hook": {
+    "contract": "PimdHook",
+    "constructorArgs": [
+      "$poolManager",
+      "$token",
+      "$factory"
+    ],
+    "permissions": [
+      "beforeInitialize",
+      "afterInitialize",
+      "beforeAddLiquidity",
+      "beforeRemoveLiquidity",
+      "beforeSwap",
+      "afterSwap",
+      "beforeSwapReturnDelta",
+      "afterSwapReturnDelta"
+    ]
+  },
+  "token": {
+    "contract": "PimdToken",
+    "name": "Ponzinomics",
+    "symbol": "PIMD",
+    "decimals": 18
+  },
+  "pool": {
+    "pairedCurrency": "0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127",
+    "fee": 12500,
+    "tickSpacing": 60,
+    "initialPrice": "79228162514264337593543950336"
+  },
+  "notes": "audit-imported-code: Reviewed PimdToken.sol, PimdHook.sol, PimdEngine.sol, L2Block.sol and DeployPimd.s.sol as imported, before creating this manifest. Source and economics were not adapted. Findings: (1) PimdHook.beforeInitialize does NOT enforce LAUNCH_TICK 129000 +/- 300; it reads the tick for Launched only. This follows the brief's explicit no-price-gate requirement but conflicts with its later tick-refusal assertion. It also accepts fees 500, 3000 and 10000 alongside the required 12500, and does not constrain tickSpacing. Fee 0 and the dynamic-fee flag are rejected. The manifest selects 12500 and spacing 60; the factory/policy must enforce those selections. (2) Initialization requires IMD as currency0 and PIMD as currency1. A deployed token sorting below IMD cannot launch with this unchanged hook; deployment must verify the actual token address ordering. (3) The existing engine's deployed bytecode, immutable configuration and binding state have not been established by this source audit. Binding is one-shot and restricted to its configured binder; it must reference this token/hook, the same PoolManager and IMD, with the launch distributor excluded. An engine already bound elsewhere cannot serve this launch. (4) Engine streaks sample balances at registration/tally: selling and restoring a balance between tallies does not reset the streak. Tally depends on immutable authorized keepers; losing all of them stops distributions. (5) DeployPimd.s.sol deploys only a NEW engine, allows environment overrides of its configuration, and makes EXPECT_ENGINE optional. It is not the two-contract launch path and must not be broadcast for this assignment. The auxiliary RehearsePimd.s.sol uses fee 0, so its swaps do not address this 12500-fee pool. (6) PimdFork.t.sol unconditionally requires a live RPC, so that suite cannot run in the stated offline verification environment. These findings are reported, not repaired.\nVerified source behavior: PimdToken has a zero-argument constructor, mints exactly 1,000,000,000 tokens at 18 decimals once to its deployer, and exposes no owner, mint, burn or pause function. Transfers to the dead address leave totalSupply unchanged. The hook has exactly the three constructor arguments listed, with no owner argument; quote, engine, team and economics are source constants. Both initialization callbacks are PoolManager-only and return their selectors. beforeInitialize restricts initialization to the factory, rejects a second pool and wrong currencies, and accepts fee 12500. beforeAddLiquidity permits one factory seed only; subsequent adds are refused. beforeRemoveLiquidity rejects every negative liquidity delta indefinitely and allows zero-delta LP fee collection. Buys pay 2.4% and sells 5.6% in IMD ERC-6909 claims, split 75% holders / 25% team before the bounded caller tip from the team slice. The separate 1.25% pool LP fee is not consumed by the hook. Engine register, prune, fire, tally and pay check the PoolManager transient unlock flag; tally reads weights only after that check. The slot matches the bundled V4 Lock library. The tier ladder remains 0x, 0.5x, 1x, 1.5x, 2x and 3x. L2Block uses a gas-capped ArbSys read with block.number fallback; the launch buy cap also expires by time.\nLaunch description: Deploy only PimdToken and PimdHook on Robinhood Chain (4663), then initialize and seed via the launch factory. PimdEngine at 0xffdb5dd341f692a29b5a0d3d1577df683c1baca4 is an existing dependency, not a deployment target. pool.initialPrice is the required reference value; the actual opening price derives from the separate policy's 2500 IMD initial market cap. This manifest neither changes policy nor asserts deployment, admission or live-engine verification.\nChecks: forge build passed. forge test passed 92/92 (91 imported tests plus one scratch test), including six live-fork tests with network access. Manifest fields, constructor ABIs and declared permissions were checked locally."
+}
